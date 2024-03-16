@@ -1,6 +1,6 @@
 class Config:
 
-    N_VERTICES = 6
+    N_VERTICES = 5
     """ size of graph G """
 
     RADIUS = 0.1

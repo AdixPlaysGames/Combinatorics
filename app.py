@@ -3,6 +3,8 @@ import networkx as nx
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config import Config
+import time
+import random
 
 
 class GraphDisplay:
@@ -11,16 +13,18 @@ class GraphDisplay:
         self.root.title("Interactive NetworkX Graph")
 
         self.canvas_frame = tk.Frame(root)
-        self.canvas_frame.pack(pady=5)
+        self.canvas_frame.pack(pady=10, padx=10)
 
-        self.fig = plt.figure(figsize=(5, 5))
+        self.fig = plt.figure(figsize=(6, 6))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.canvas_frame)
-        self.canvas.get_tk_widget().pack()
+        self.canvas.get_tk_widget().pack(pady=1, padx=1)
 
         self.graph = nx.Graph()
         self.positions = None
         self.selected_node = None
         self.hovered_node = None
+        self.color1_edges = []
+        self.color2_edges = []
 
         self.canvas.mpl_connect('button_press_event', self.on_click)
         self.canvas.mpl_connect('motion_notify_event', self.on_hover)
@@ -29,16 +33,17 @@ class GraphDisplay:
 
     def draw_graph(self, first_drawing=False):
         """
-        rysuje graf
+        draws graph with nodes
 
-        :param first_drawing: czy to pierwszy raz, kiedy rysowany jest graf
-        :return: draw graph
+        :param first_drawing: if it is the first time the graph is drawn
+        :return: draws graph
         """
-        self.fig.gca().clear()  # Clear the previous plot
+        ax = self.fig.gca()  # Clear the previous plot
+        ax.clear()
 
         if first_drawing:
-            self.graph.add_nodes_from(range(1, Config.N_VERTICES))
-            self.positions = nx.circular_layout(self.graph)
+            self.graph.add_nodes_from(range(1, Config.N_VERTICES+1))
+        self.positions = nx.circular_layout(self.graph)
 
         nx.draw(self.graph, self.positions, with_labels=True, node_size=700, node_color='skyblue',
                 font_size=10, font_weight='bold', ax=self.fig.gca())
@@ -52,6 +57,9 @@ class GraphDisplay:
             else:
                 self.draw_custom_nodes(nodes=[self.hovered_node], border_color='black')
 
+        self.draw_custom_edges(edges=self.color1_edges)
+        self.draw_custom_edges(edges=self.color2_edges, color='blue')
+
         self.canvas.draw()
 
     def draw_custom_nodes(self, nodes=None, color='skyblue', border_color=None):
@@ -60,6 +68,13 @@ class GraphDisplay:
             nodes = self.graph.nodes
         nx.draw_networkx_nodes(self.graph, self.positions, nodelist=nodes,
                                node_color=color, node_size=700, ax=self.fig.gca(), edgecolors=border_color)
+
+    def draw_custom_edges(self, edges=None, color='red'):
+        if edges is None:
+            edges = self.graph.edges
+        if len(edges) == 0:
+            return
+        nx.draw_networkx_edges(self.graph, self.positions, edgelist=edges, edge_color=color)
 
     def on_click(self, event):
         if event.inaxes is not None:  # sprawdzenie czy zdarzenie odbyło się w obrębie grafu
@@ -78,8 +93,9 @@ class GraphDisplay:
                     elif not self.graph.has_edge(self.selected_node, node):
                         # jeśli nie ma krawędzi, to dodajemy
                         self.graph.add_edge(self.selected_node, node)
+                        self.color_edge(edge=(self.selected_node, node))
                         self.selected_node = None
-
+                        self.check_game()
                     else:
                         # komunikat w okienku
                         print("Edge already exists.")
@@ -101,7 +117,7 @@ class GraphDisplay:
 
     def find_node(self, x, y):
         """
-        Znajduje odpowiedni wierzchołek, na który nakierowany jest kursor
+        finds a node, which is being pointed at by cursor
         """
         node = None
         for n, (xpos, ypos) in self.positions.items():
@@ -109,6 +125,34 @@ class GraphDisplay:
                 node = n
                 break
         return node
+
+    def color_edge(self, edge):
+        """ painter strategy logic """
+        if random.randint(0, 1) == 0:
+            self.color1_edges.append(edge)
+        else:
+            self.color2_edges.append(edge)
+
+    def check_game(self):
+        """ checks game state """
+        if is_complete(self.graph):
+            self.reset_game()
+
+    def reset_game(self):
+        """ resets game """
+        self.graph = nx.Graph()
+        self.positions = None
+        self.selected_node = None
+        self.hovered_node = None
+        self.color1_edges = []
+        self.color2_edges = []
+        self.draw_graph(first_drawing=True)
+
+
+def is_complete(G):
+    """ checks if graph G is complete """
+    n = G.order()
+    return n*(n-1)/2 == G.size()
 
 
 if __name__ == "__main__":
