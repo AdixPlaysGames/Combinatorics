@@ -3,7 +3,6 @@ import networkx as nx
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config import Config
-import time
 import random
 
 
@@ -12,8 +11,19 @@ class GraphDisplay:
         self.root = root
         self.root.title("Interactive NetworkX Graph")
 
+        window_height = 620
+        window_width = 600
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x_cordinate = int((screen_width / 2) - (window_width / 2))
+        y_cordinate = int((screen_height / 2) - (window_height / 2))
+        self.root.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
+
+        self.pause_button = tk.Button(root, text="Pause", command=self.pause_app)
+        self.pause_button.pack(pady=5, padx=10, anchor='nw')
+
         self.canvas_frame = tk.Frame(root)
-        self.canvas_frame.pack(pady=10, padx=10)
+        self.canvas_frame.pack(pady=(0, 10), padx=10)
 
         self.fig = plt.figure(figsize=(6, 6))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.canvas_frame)
@@ -30,6 +40,47 @@ class GraphDisplay:
         self.canvas.mpl_connect('motion_notify_event', self.on_hover)
 
         self.draw_graph(first_drawing=True)
+
+        self.pause_menu = None
+
+    def pause_app(self):
+        """ pause button handler """
+        self.show_pause_menu()
+
+    def show_pause_menu(self):
+        """ shows pause menu """
+        self.pause_menu = tk.Toplevel(self.root)
+        self.pause_menu.title("Pause Menu")
+
+        self.root.eval(f'tk::PlaceWindow {str(self.pause_menu)} center')
+
+        pause_menu_width = 200
+        pause_menu_height = 150
+        self.pause_menu.geometry(f"{pause_menu_width}x{pause_menu_height}")
+
+        info_label = tk.Label(self.pause_menu, text="Game paused")
+        info_label.pack()
+
+        resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy)
+        resume_button.pack(pady=5)
+        restart_button = tk.Button(self.pause_menu, text="Restart", command=self.restart_game)
+        restart_button.pack(pady=5)
+        exit_button = tk.Button(self.pause_menu, text="Exit", command=self.quit_game)
+        exit_button.pack(pady=5)
+
+        self.pause_menu.transient(self.root)
+        self.pause_menu.grab_set()
+        self.root.wait_window(self.pause_menu)
+
+    def quit_game(self):
+        """ quits the game """
+        self.pause_menu.destroy()
+        self.root.quit()
+
+    def restart_game(self):
+        """ restarts the game """
+        self.reset_game()
+        self.pause_menu.destroy()
 
     def draw_graph(self, first_drawing=False):
         """
@@ -70,6 +121,7 @@ class GraphDisplay:
                                node_color=color, node_size=700, ax=self.fig.gca(), edgecolors=border_color)
 
     def draw_custom_edges(self, edges=None, color='red'):
+        """ draws edges with custom settings """
         if edges is None:
             edges = self.graph.edges
         if len(edges) == 0:
@@ -77,6 +129,7 @@ class GraphDisplay:
         nx.draw_networkx_edges(self.graph, self.positions, edgelist=edges, edge_color=color)
 
     def on_click(self, event):
+        """ actions for mouse click """
         if event.inaxes is not None:  # sprawdzenie czy zdarzenie odbyło się w obrębie grafu
             x, y = event.xdata, event.ydata
             node = self.find_node(x, y)
@@ -103,6 +156,7 @@ class GraphDisplay:
                 self.draw_graph()
 
     def on_hover(self, event):
+        """ actions for mouse hover """
         if event.inaxes is not None:
             x, y = event.xdata, event.ydata
             node = self.find_node(x, y)
