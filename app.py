@@ -9,7 +9,7 @@ import random
 class GraphDisplay:
     def __init__(self, root):
         self.root = root
-        self.root.title("Interactive NetworkX Graph")
+        self.root.title("Ramsey Numbers Online")
 
         window_height = 620
         window_width = 600
@@ -19,7 +19,7 @@ class GraphDisplay:
         y_cordinate = int((screen_height / 2) - (window_height / 2))
         self.root.geometry("{}x{}+{}+{}".format(window_width, window_height, x_cordinate, y_cordinate))
 
-        self.pause_button = tk.Button(root, text="Pause", command=self.pause_app)
+        self.pause_button = tk.Button(root, text="Menu", command=self.pause_app)
         self.pause_button.pack(pady=5, padx=10, anchor='nw')
 
         self.canvas_frame = tk.Frame(root)
@@ -35,47 +35,126 @@ class GraphDisplay:
         self.hovered_node = None
         self.color1_edges = []
         self.color2_edges = []
+        self.n_vertices = 5
+        self.clique_size = 3
+        self.n_vertices_ent = None
+        self.clique_size_ent = None
 
-        self.canvas.mpl_connect('button_press_event', self.on_click)
-        self.canvas.mpl_connect('motion_notify_event', self.on_hover)
+        self.click_id = self.canvas.mpl_connect('button_press_event', self.on_click)
+        self.hover_id = self.canvas.mpl_connect('motion_notify_event', self.on_hover)
 
-        self.draw_graph(first_drawing=True)
+        # self.draw_graph(first_drawing=True)
 
         self.pause_menu = None
+        self.start_menu = None
+        self.start_menu_info_label = None
+
+        self.show_start_menu()
 
     def pause_app(self):
         """ pause button handler """
         self.show_pause_menu()
 
-    def show_pause_menu(self):
+    def show_pause_menu(self, finish_info=None):
         """ shows pause menu """
         self.pause_menu = tk.Toplevel(self.root)
-        self.pause_menu.title("Pause Menu")
-
+        self.pause_menu.title("Menu")
         self.root.eval(f'tk::PlaceWindow {str(self.pause_menu)} center')
+        self.pause_menu.geometry(f"{Config.MENU_WIDTH}x{Config.MENU_HEIGHT}")
 
-        pause_menu_width = 200
-        pause_menu_height = 150
-        self.pause_menu.geometry(f"{pause_menu_width}x{pause_menu_height}")
-
-        info_label = tk.Label(self.pause_menu, text="Game paused")
-        info_label.pack()
-
-        resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy)
-        resume_button.pack(pady=5)
-        restart_button = tk.Button(self.pause_menu, text="Restart", command=self.restart_game)
+        if finish_info is None:
+            resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy, height=1, width=10)
+            resume_button.pack(pady=(10, 5))
+        else:
+            finished_label = tk.Label(self.pause_menu, text=finish_info)
+            finished_label.pack(pady=(10, 5))
+        restart_button = tk.Button(self.pause_menu, text="Restart", command=self.restart_game, height=1, width=10)
         restart_button.pack(pady=5)
-        exit_button = tk.Button(self.pause_menu, text="Exit", command=self.quit_game)
+        new_game_button = tk.Button(self.pause_menu, text="New game", command=self.menu_new_game, height=1, width=10)
+        new_game_button.pack(pady=5)
+        exit_button = tk.Button(self.pause_menu, text="Exit", command=self.menu_quit_game, height=1, width=10)
         exit_button.pack(pady=5)
 
         self.pause_menu.transient(self.root)
         self.pause_menu.grab_set()
         self.root.wait_window(self.pause_menu)
 
-    def quit_game(self):
+    def show_start_menu(self):
+        """ shows start menu """
+        self.start_menu = tk.Toplevel(self.root)
+        self.start_menu.title("Menu")
+        self.root.eval(f'tk::PlaceWindow {str(self.start_menu)} center')
+        self.start_menu.geometry(f"{Config.MENU_WIDTH}x{Config.MENU_HEIGHT}")
+
+        vertices_label = tk.Label(self.start_menu, text='Enter number of vertices')
+        vertices_label.pack(pady=(5, 0))
+        self.n_vertices_ent = tk.Entry(self.start_menu)
+        self.n_vertices_ent.pack()
+        clique_label = tk.Label(self.start_menu, text='Enter clique size')
+        clique_label.pack(pady=(5, 0))
+        self.clique_size_ent = tk.Entry(self.start_menu)
+        self.clique_size_ent.pack()
+        self.start_menu_info_label = tk.Label(self.start_menu, text="\n")
+        self.start_menu_info_label.pack()
+
+        restart_button = tk.Button(self.start_menu, text="Start game", command=self.start_game, height=1, width=10)
+        restart_button.pack(pady=5)
+
+        self.start_menu.transient(self.root)
+        self.start_menu.grab_set()
+        self.root.wait_window(self.start_menu)
+
+    def disable_event(self, event=None):
+        """ disables event if needed """
+        pass
+
+    def validate_params(self):
+        """ validates and sets params, returns a tuple (bool, string) """
+        try:
+            print(self.n_vertices)
+            print(self.clique_size)
+            n_vertices = int(self.n_vertices_ent.get())
+            clique_size = int(self.clique_size_ent.get())
+        except ValueError:
+            return False, "input must be an integer"
+
+        try:
+            assert n_vertices > 1
+            assert clique_size > 1
+        except AssertionError:
+            return False, "input must be bigger than 1"
+
+        try:
+            assert n_vertices >= clique_size
+        except AssertionError:
+            return False, "clique size cant be bigger\nthan number of vertices"
+
+        self.set_parameters(n_vertices, clique_size)
+        return True, ""
+
+    def set_parameters(self, n_vertices, clique_size):
+        """ sets game parameters """
+        self.n_vertices = n_vertices
+        self.clique_size = clique_size
+
+    def menu_quit_game(self):
         """ quits the game """
         self.pause_menu.destroy()
         self.root.quit()
+
+    def menu_new_game(self):
+        """ new game handler """
+        self.show_start_menu()
+        self.pause_menu.destroy()
+
+    def start_game(self):
+        """ starts the game"""
+        validation, info = self.validate_params()
+        if not validation:
+            self.start_menu_info_label.config(text=info)
+            return
+        self.reset_game()
+        self.start_menu.destroy()
 
     def restart_game(self):
         """ restarts the game """
@@ -93,7 +172,7 @@ class GraphDisplay:
         ax.clear()
 
         if first_drawing:
-            self.graph.add_nodes_from(range(1, Config.N_VERTICES+1))
+            self.graph.add_nodes_from(range(1, self.n_vertices+1))
         self.positions = nx.circular_layout(self.graph)
 
         nx.draw(self.graph, self.positions, with_labels=True, node_size=700, node_color='skyblue',
@@ -148,11 +227,12 @@ class GraphDisplay:
                         self.graph.add_edge(self.selected_node, node)
                         self.color_edge(edge=(self.selected_node, node))
                         self.selected_node = None
+                        self.draw_graph()
                         self.check_game()
+                        return
                     else:
                         # komunikat w okienku
                         print("Edge already exists.")
-
                 self.draw_graph()
 
     def on_hover(self, event):
@@ -189,8 +269,17 @@ class GraphDisplay:
 
     def check_game(self):
         """ checks game state """
+        if check_monochromatic_clique(self.graph, self.clique_size):
+            self.end_game("User won :)")
         if is_complete(self.graph):
-            self.reset_game()
+            # self.reset_game()
+            self.end_game("Computer won :(")
+
+    def end_game(self, info):
+        """ ends game, disables interaction, shows results """
+        self.canvas.mpl_disconnect(self.click_id)
+        self.canvas.mpl_disconnect(self.hover_id)
+        self.show_pause_menu(finish_info=info)
 
     def reset_game(self):
         """ resets game """
@@ -200,6 +289,8 @@ class GraphDisplay:
         self.hovered_node = None
         self.color1_edges = []
         self.color2_edges = []
+        self.canvas.mpl_connect('button_press_event', self.on_click)
+        self.canvas.mpl_connect('motion_notify_event', self.on_hover)
         self.draw_graph(first_drawing=True)
 
 
@@ -207,6 +298,11 @@ def is_complete(G):
     """ checks if graph G is complete """
     n = G.order()
     return n*(n-1)/2 == G.size()
+
+
+def check_monochromatic_clique(G, clique_size):
+    """ checks if there is monochromatic clique in graph G"""
+    return False
 
 
 if __name__ == "__main__":
