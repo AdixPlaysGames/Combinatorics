@@ -1,10 +1,12 @@
+import time
 import tkinter as tk
 import networkx as nx
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config import Config
-import random
 from strategy import is_complete, check_monochromatic_clique
+import threading
+from strategy import Strategy
 
 
 class RamseyGame:
@@ -23,10 +25,6 @@ class RamseyGame:
         id of currently selected node
     hovered_node : int
         id of currently hovered node
-    color1_edges : List
-        edges colored with first color
-    color2_edges : List
-        edges colored with second color
     n_vertices : int
         number of vertices of the main graph
     clique_size : int
@@ -77,8 +75,8 @@ class RamseyGame:
         self.positions = None
         self.selected_node = None
         self.hovered_node = None
-        self.color1_edges = []
-        self.color2_edges = []
+        # self.color1_edges = []
+        # self.color2_edges = []
         self.n_vertices = 5
         self.clique_size = 3
         self.n_vertices_ent = None
@@ -105,7 +103,8 @@ class RamseyGame:
 
         # if game has finished show results otherwise display 'resume' button
         if finish_info is None:
-            resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy, height=1, width=10)
+            resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy, height=1,
+                                      width=10)
             resume_button.pack(pady=(10, 5))
         else:
             finished_label = tk.Label(self.pause_menu, text=finish_info)
@@ -192,8 +191,10 @@ class RamseyGame:
             self.graph.add_nodes_from(range(1, self.n_vertices+1))
         self.positions = nx.circular_layout(self.graph)
 
+        colors = [self.graph[u][v]['color'] for u, v in self.graph.edges()]
+
         nx.draw(self.graph, self.positions, with_labels=True, node_size=700, node_color='skyblue',
-                font_size=10, font_weight='bold', ax=self.fig.gca())
+                font_size=10, font_weight='bold', ax=self.fig.gca(), edge_color=colors)
 
         if self.selected_node is not None:
             self.draw_custom_nodes(nodes=[self.selected_node], color='orange')
@@ -203,9 +204,6 @@ class RamseyGame:
                 self.draw_custom_nodes(nodes=[self.hovered_node], color='orange', border_color='black')
             else:
                 self.draw_custom_nodes(nodes=[self.hovered_node], border_color='black')
-
-        self.draw_custom_edges(edges=self.color1_edges)
-        self.draw_custom_edges(edges=self.color2_edges, color='blue')
 
         self.canvas.draw()
 
@@ -242,15 +240,9 @@ class RamseyGame:
                         self.selected_node = None
 
                     elif not self.graph.has_edge(self.selected_node, node):
-                        # jeśli nie ma krawędzi, to dodajemy
-                        self.graph.add_edge(self.selected_node, node)
-                        self.color_edge(edge=(self.selected_node, node))
-                        self.selected_node = None
-                        self.draw_graph()
-                        self.check_game()
+                        self.add_edge(self.selected_node, node)
                         return
                     else:
-                        # komunikat w okienku
                         print("Edge already exists.")
                 self.draw_graph()
 
@@ -279,17 +271,39 @@ class RamseyGame:
                 break
         return node
 
-    def color_edge(self, edge):
-        """ painter strategy logic """
-        if random.randint(0, 1) == 0:
-            self.color1_edges.append(edge)
-        else:
-            self.color2_edges.append(edge)
+    def add_edge_threaded(self, first_node, second_node):
+        """ WARNING: currently not in use """
+
+        def add_edge_func(node_one, node_two):
+            color = Strategy.choose_color(self.graph)
+            self.graph.add_edge(node_one, node_two, color=color)
+            self.selected_node = None
+            self.draw_graph()
+            time.sleep(0.5)
+            self.check_game()
+            self.draw_graph()
+
+        thread = threading.Thread(target=add_edge_func, args=(first_node, second_node))
+        thread.start()
+
+    def add_edge(self, first_node, second_node):
+        """ handles logic when adding edge """
+        color = Strategy.choose_color(self.graph)
+        self.graph.add_edge(first_node, second_node, color=color)
+        print(f"added edge {(first_node, second_node)}")
+        # self.color_edge(edge=(first_node, second_node))
+        self.selected_node = None
+        self.draw_graph()
+        self.check_game()
+        # print(f"color 1 edges: {self.color1_edges}")
+        # print(f"color 2 edges: {self.color2_edges}")
+        print(self.graph.edge_attr_dict_factory)
 
     def check_game(self):
         """ checks game state """
         if check_monochromatic_clique(self.graph, self.clique_size):
             self.end_game("User won :)")
+            return
         if is_complete(self.graph):
             self.end_game("Computer won :(")
 
@@ -305,8 +319,6 @@ class RamseyGame:
         self.positions = None
         self.selected_node = None
         self.hovered_node = None
-        self.color1_edges = []
-        self.color2_edges = []
         self.canvas.mpl_connect('button_press_event', self.on_click)
         self.canvas.mpl_connect('motion_notify_event', self.on_hover)
         self.draw_graph(first_drawing=True)
@@ -325,8 +337,6 @@ class RamseyGame:
     def validate_params(self):
         """ validates and sets params, returns a tuple (bool, string) """
         try:
-            print(self.n_vertices)
-            print(self.clique_size)
             n_vertices = int(self.n_vertices_ent.get())
             clique_size = int(self.clique_size_ent.get())
         except ValueError:
