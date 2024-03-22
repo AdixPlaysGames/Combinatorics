@@ -4,13 +4,55 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config import Config
 import random
+from strategy import is_complete, check_monochromatic_clique
 
 
-class GraphDisplay:
+class RamseyGame:
+    """
+    Attributes
+    ----------
+    root : tk.Tk()
+        main app window
+    pause_button : tk.Button
+        menu display button
+    graph : nx.Graph
+        main game graph
+    positions :
+        node positions
+    selected_node : int
+        id of currently selected node
+    hovered_node : int
+        id of currently hovered node
+    color1_edges : List
+        edges colored with first color
+    color2_edges : List
+        edges colored with second color
+    n_vertices : int
+        number of vertices of the main graph
+    clique_size : int
+        number of vertices of the desired clique
+    n_vertices_ent : tk.Entry
+        placeholder for n_vertices value
+    clique_size_ent : tk.Entry
+        placeholder for clique_size value
+    click_id :
+         mouse click handler id, for connecting and disconnecting
+    hover_id :
+        mouse hover handler id, for connecting and disconnecting
+    pause_menu : tk.TopLevel
+        game menu
+    start_menu : tk.TopLevel
+        starting menu where you can enter game parameters
+    start_menu_info_label : tk.Label
+        a label for displaying validation info
+    """
+
     def __init__(self, root):
+
         self.root = root
         self.root.title("Ramsey Numbers Online")
 
+        # set dimensions and center
         window_height = 620
         window_width = 600
         screen_width = self.root.winfo_screenwidth()
@@ -22,6 +64,7 @@ class GraphDisplay:
         self.pause_button = tk.Button(root, text="Menu", command=self.pause_app)
         self.pause_button.pack(pady=5, padx=10, anchor='nw')
 
+        # prepare canvas for drawing graph
         self.canvas_frame = tk.Frame(root)
         self.canvas_frame.pack(pady=(0, 10), padx=10)
 
@@ -29,6 +72,7 @@ class GraphDisplay:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.canvas_frame)
         self.canvas.get_tk_widget().pack(pady=1, padx=1)
 
+        # initialize all game attributes
         self.graph = nx.Graph()
         self.positions = None
         self.selected_node = None
@@ -40,10 +84,9 @@ class GraphDisplay:
         self.n_vertices_ent = None
         self.clique_size_ent = None
 
+        # ids for event handlers
         self.click_id = self.canvas.mpl_connect('button_press_event', self.on_click)
         self.hover_id = self.canvas.mpl_connect('motion_notify_event', self.on_hover)
-
-        # self.draw_graph(first_drawing=True)
 
         self.pause_menu = None
         self.start_menu = None
@@ -51,9 +94,7 @@ class GraphDisplay:
 
         self.show_start_menu()
 
-    def pause_app(self):
-        """ pause button handler """
-        self.show_pause_menu()
+    """ APP UI """
 
     def show_pause_menu(self, finish_info=None):
         """ shows pause menu """
@@ -62,6 +103,7 @@ class GraphDisplay:
         self.root.eval(f'tk::PlaceWindow {str(self.pause_menu)} center')
         self.pause_menu.geometry(f"{Config.MENU_WIDTH}x{Config.MENU_HEIGHT}")
 
+        # if game has finished show results otherwise display 'resume' button
         if finish_info is None:
             resume_button = tk.Button(self.pause_menu, text="Resume", command=self.pause_menu.destroy, height=1, width=10)
             resume_button.pack(pady=(10, 5))
@@ -104,38 +146,11 @@ class GraphDisplay:
         self.start_menu.grab_set()
         self.root.wait_window(self.start_menu)
 
-    def disable_event(self, event=None):
-        """ disables event if needed """
-        pass
+    """ BUTTON HANDLERS """
 
-    def validate_params(self):
-        """ validates and sets params, returns a tuple (bool, string) """
-        try:
-            print(self.n_vertices)
-            print(self.clique_size)
-            n_vertices = int(self.n_vertices_ent.get())
-            clique_size = int(self.clique_size_ent.get())
-        except ValueError:
-            return False, "input must be an integer"
-
-        try:
-            assert n_vertices > 1
-            assert clique_size > 1
-        except AssertionError:
-            return False, "input must be bigger than 1"
-
-        try:
-            assert n_vertices >= clique_size
-        except AssertionError:
-            return False, "clique size cant be bigger\nthan number of vertices"
-
-        self.set_parameters(n_vertices, clique_size)
-        return True, ""
-
-    def set_parameters(self, n_vertices, clique_size):
-        """ sets game parameters """
-        self.n_vertices = n_vertices
-        self.clique_size = clique_size
+    def pause_app(self):
+        """ pause button handler """
+        self.show_pause_menu()
 
     def menu_quit_game(self):
         """ quits the game """
@@ -160,6 +175,8 @@ class GraphDisplay:
         """ restarts the game """
         self.reset_game()
         self.pause_menu.destroy()
+
+    """ GRAPH ACTIONS """
 
     def draw_graph(self, first_drawing=False):
         """
@@ -206,6 +223,8 @@ class GraphDisplay:
         if len(edges) == 0:
             return
         nx.draw_networkx_edges(self.graph, self.positions, edgelist=edges, edge_color=color)
+
+    """ GAMEPLAY & GAME LOGIC """
 
     def on_click(self, event):
         """ actions for mouse click """
@@ -272,7 +291,6 @@ class GraphDisplay:
         if check_monochromatic_clique(self.graph, self.clique_size):
             self.end_game("User won :)")
         if is_complete(self.graph):
-            # self.reset_game()
             self.end_game("Computer won :(")
 
     def end_game(self, info):
@@ -282,7 +300,7 @@ class GraphDisplay:
         self.show_pause_menu(finish_info=info)
 
     def reset_game(self):
-        """ resets game """
+        """ resets game, connects interaction back """
         self.graph = nx.Graph()
         self.positions = None
         self.selected_node = None
@@ -293,19 +311,43 @@ class GraphDisplay:
         self.canvas.mpl_connect('motion_notify_event', self.on_hover)
         self.draw_graph(first_drawing=True)
 
+    """ UTILS """
 
-def is_complete(G):
-    """ checks if graph G is complete """
-    n = G.order()
-    return n*(n-1)/2 == G.size()
+    def disable_event(self, event=None):
+        """ disables event if needed """
+        pass
 
+    def set_parameters(self, n_vertices, clique_size):
+        """ sets game parameters """
+        self.n_vertices = n_vertices
+        self.clique_size = clique_size
 
-def check_monochromatic_clique(G, clique_size):
-    """ checks if there is monochromatic clique in graph G"""
-    return False
+    def validate_params(self):
+        """ validates and sets params, returns a tuple (bool, string) """
+        try:
+            print(self.n_vertices)
+            print(self.clique_size)
+            n_vertices = int(self.n_vertices_ent.get())
+            clique_size = int(self.clique_size_ent.get())
+        except ValueError:
+            return False, "input must be an integer"
+
+        try:
+            assert n_vertices > 1
+            assert clique_size > 1
+        except AssertionError:
+            return False, "input must be bigger than 1"
+
+        try:
+            assert n_vertices >= clique_size
+        except AssertionError:
+            return False, "clique size cant be bigger\nthan number of vertices"
+
+        self.set_parameters(n_vertices, clique_size)
+        return True, ""
 
 
 if __name__ == "__main__":
     app_root = tk.Tk()
-    app = GraphDisplay(app_root)
+    app = RamseyGame(app_root)
     app_root.mainloop()
